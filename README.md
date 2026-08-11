@@ -53,6 +53,25 @@ See [installation.md](installation.md) for step-by-step agent instructions.
 
 Just run OpenCode. The plugin handles auth automatically — it reads your Claude Code credentials, provides them to the Anthropic API, and refreshes them in the background. If your credentials aren't OAuth-based, the plugin falls through to standard API key auth.
 
+## Routing through LiteLLM
+
+To send requests through a [LiteLLM](https://docs.litellm.ai) gateway instead of directly to `api.anthropic.com` (for centralised logging, budgets, rate limits, etc.), set two environment variables:
+
+```bash
+export LITELLM_BASE_URL=https://litellm.example.ts.net
+export LITELLM_API_KEY=sk-your-virtual-key
+```
+
+The plugin then:
+
+- Sends requests to `${LITELLM_BASE_URL}/v1/messages` instead of Anthropic.
+- Adds `x-litellm-api-key: Bearer ${LITELLM_API_KEY}` on every request so LiteLLM can authenticate you.
+- Leaves the OAuth `Authorization: Bearer <token>` header intact so LiteLLM can forward it to Anthropic for Max-subscription auth.
+
+Your LiteLLM `config.yaml` must have `general_settings.forward_client_headers_to_llm_api: true` so the OAuth header reaches Anthropic. See the [LiteLLM Claude Max tutorial](https://docs.litellm.ai/docs/tutorials/claude_code_max_subscription) for full gateway setup.
+
+Both variables are optional and independent: unset them to fall back to direct Anthropic. LiteLLM's per-request cost tracking will show $0 because the plugin zeroes model costs for OAuth-Max sessions (token counts still flow).
+
 ## Supported models
 
 13 supported models. Run `pnpm run test:models` to verify against your account.
@@ -158,6 +177,8 @@ All configurable parameters can be overridden via environment variables. If Anth
 | `ANTHROPIC_BETA_FLAGS`                     | Comma-separated beta feature flags                                                                                                                                                                                                                                                | `baseBetas` list in [`src/model-config.ts`](src/model-config.ts)   |
 | `CLAUDE_AUTH_DEBUG`                        | Enable diagnostic logging (`1` for default path, or a custom file path)                                                                                                                                                                                                           | disabled                                                           |
 | `CLAUDE_CONFIG_DIR`                        | Claude Code config directory used for the credentials-file fallback (reads `$CLAUDE_CONFIG_DIR/.credentials.json`). macOS still checks the Keychain first.                                                                                                                        | `~/.claude`                                                        |
+| `LITELLM_BASE_URL`                         | LiteLLM gateway URL (e.g. `https://litellm.example.ts.net`). When set, the plugin routes requests to `${LITELLM_BASE_URL}/v1/messages` instead of `api.anthropic.com`. See [Routing through LiteLLM](#routing-through-litellm).                                                   | unset (direct to Anthropic)                                        |
+| `LITELLM_API_KEY`                          | LiteLLM virtual key (without `Bearer ` prefix). When set, added as `x-litellm-api-key: Bearer <key>` on every request. Independent of `LITELLM_BASE_URL`.                                                                                                                         | unset                                                              |
 | `OPENCODE_CLAUDE_AUTH_MAX_RETRY_MS`        | Max ms the plugin waits when honouring a 429/529 `retry-after` header. Beyond this cap the response surfaces immediately so OpenCode doesn't appear to hang on hour-long quota resets.                                                                                            | `30000`                                                            |
 | `OPENCODE_CLAUDE_AUTH_TOOL_REPAIR`         | Strategy for reconciling `tool_use`/`tool_result` adjacency broken by OpenCode auto-compaction. `placeholder` synthesizes a paired result for orphaned `tool_use` blocks (lossless, preserves `thinking` blocks); `drop` removes orphaned blocks (omitting whole thinking turns). | `placeholder`                                                      |
 | `OPENCODE_CLAUDE_AUTH_REFRESH_WAIT_MS`     | Max ms a single request waits through a transient token-refresh rate-limit (429) before returning a retryable error instead of a hard "run `claude`".                                                                                                                             | `45000`                                                            |

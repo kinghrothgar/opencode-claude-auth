@@ -61,6 +61,7 @@
     "lint": "oxlint && oxfmt --check .",
     "lint:fix": "oxlint --fix . && oxfmt --write .",
     "format": "oxfmt --write .",
+    "prepare": "pnpm run build",
     "prepublishOnly": "pnpm run build && pnpm test"
   },
   "devDependencies": {

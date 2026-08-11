@@ -74,6 +74,15 @@ function getUserAgent(): string {
   )
 }
 
+function getLiteLLMBaseURL(): string | null {
+  const raw = process.env.LITELLM_BASE_URL?.trim()
+  return raw ? raw.replace(/\/+$/, "") : null
+}
+
+function getLiteLLMApiKey(): string | null {
+  return process.env.LITELLM_API_KEY?.trim() || null
+}
+
 function getStainlessHeaders(): Record<string, string> {
   return {
     "x-stainless-arch": process.arch === "arm64" ? "arm64" : process.arch,
@@ -153,6 +162,14 @@ export function buildRequestHeaders(
   ]
 
   headers.set("authorization", `Bearer ${accessToken}`)
+  // When routing through a LiteLLM gateway, add its virtual-key header.
+  // LiteLLM authenticates on x-litellm-api-key and (with
+  // forward_client_headers_to_llm_api: true) forwards the OAuth
+  // Authorization header to Anthropic unchanged.
+  const litellmKey = getLiteLLMApiKey()
+  if (litellmKey && !headers.has("x-litellm-api-key")) {
+    headers.set("x-litellm-api-key", `Bearer ${litellmKey}`)
+  }
   headers.set("anthropic-version", "2023-06-01")
   headers.set("anthropic-beta", mergedBetas.join(","))
   headers.set("anthropic-dangerous-direct-browser-access", "true")
@@ -304,9 +321,17 @@ const plugin: Plugin = async () => {
           modelCount: Object.keys(provider.models).length,
         })
 
+        // LITELLM_BASE_URL points at a LiteLLM gateway (e.g.
+        // https://litellm.example.ts.net). We append /v1 so the AI SDK
+        // constructs the same /v1/messages path the plugin already assumes.
+        const litellmBase = getLiteLLMBaseURL()
+        const baseURL = litellmBase
+          ? `${litellmBase}/v1`
+          : "https://api.anthropic.com/v1"
+
         return {
           apiKey: "",
-          baseURL: "https://api.anthropic.com/v1",
+          baseURL,
           async fetch(input: RequestInfo | URL, init?: RequestInit) {
             const requestInit = init ?? {}
             let latest = await getCachedCredentials()

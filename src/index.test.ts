@@ -568,6 +568,61 @@ export function buildAccountLabels(creds) { return creds.map((_, i) => \`Account
     assert.equal(headers.get("x-stainless-runtime"), "custom-runtime")
   })
 
+  it("buildRequestHeaders adds x-litellm-api-key when LITELLM_API_KEY is set", () => {
+    process.env.LITELLM_API_KEY = "sk-virtual-test"
+    try {
+      const headers = helpers.buildRequestHeaders(
+        "https://api.anthropic.com/v1/messages",
+        { headers: {} },
+        "oauth-token",
+        "claude-sonnet-4-6",
+      )
+      assert.equal(
+        headers.get("x-litellm-api-key"),
+        "Bearer sk-virtual-test",
+        "Plugin should prepend Bearer to LITELLM_API_KEY",
+      )
+      // OAuth Authorization header must remain intact so LiteLLM can forward
+      // it to Anthropic for Max-subscription auth.
+      assert.equal(headers.get("authorization"), "Bearer oauth-token")
+    } finally {
+      delete process.env.LITELLM_API_KEY
+    }
+  })
+
+  it("buildRequestHeaders omits x-litellm-api-key when LITELLM_API_KEY is unset", () => {
+    delete process.env.LITELLM_API_KEY
+    const headers = helpers.buildRequestHeaders(
+      "https://api.anthropic.com/v1/messages",
+      { headers: {} },
+      "oauth-token",
+      "claude-sonnet-4-6",
+    )
+    assert.equal(headers.get("x-litellm-api-key"), null)
+  })
+
+  it("buildRequestHeaders does not overwrite a caller-provided x-litellm-api-key", () => {
+    process.env.LITELLM_API_KEY = "sk-env-value"
+    try {
+      const headers = helpers.buildRequestHeaders(
+        "https://api.anthropic.com/v1/messages",
+        {
+          headers: {
+            "x-litellm-api-key": "Bearer sk-caller-override",
+          },
+        },
+        "oauth-token",
+        "claude-sonnet-4-6",
+      )
+      assert.equal(
+        headers.get("x-litellm-api-key"),
+        "Bearer sk-caller-override",
+      )
+    } finally {
+      delete process.env.LITELLM_API_KEY
+    }
+  })
+
   it("fetchWithRetry retries on 429 and succeeds", async () => {
     let callCount = 0
     const mockFetch = (() => {
@@ -1061,6 +1116,104 @@ export function buildAccountLabels(creds) { return creds.map((_, i) => \`Account
     } finally {
       globalThis.setInterval = originalSetInterval
       console.warn = originalWarn
+      if (typeof originalHome === "string") {
+        process.env.HOME = originalHome
+      } else {
+        delete process.env.HOME
+      }
+    }
+  })
+
+  it("auth loader uses LITELLM_BASE_URL for baseURL when set", async () => {
+    const originalNow = Date.now
+    const originalSetInterval = globalThis.setInterval
+    const originalHome = process.env.HOME
+    const tempHome = await mkdtemp(join(tmpdir(), "opencode-claude-auth-home-"))
+    process.env.HOME = tempHome
+    process.env.LITELLM_BASE_URL = "https://litellm.example.ts.net/"
+    Date.now = () => 1_700_000_000_000
+    globalThis.setInterval = (() => ({
+      unref() {},
+    })) as unknown as typeof setInterval
+
+    try {
+      const { helpersModule } = await loadHelpersWithCountingKeychain(
+        Date.now() + 10 * 60_000,
+      )
+
+      const plugin = await helpersModule.default({} as never)
+      const typedPlugin = plugin as {
+        auth?: {
+          loader?: (
+            getAuth: () => Promise<unknown>,
+            provider: unknown,
+          ) => Promise<{ baseURL?: string }>
+        }
+      }
+      const authConfig = await typedPlugin.auth!.loader!(
+        async () => ({
+          type: "oauth",
+          refresh: "refresh",
+          access: "access",
+          expires: Date.now() + 60_000,
+        }),
+        { models: {} },
+      )
+
+      // Trailing slashes should be stripped; /v1 should be appended once.
+      assert.equal(authConfig.baseURL, "https://litellm.example.ts.net/v1")
+    } finally {
+      Date.now = originalNow
+      globalThis.setInterval = originalSetInterval
+      delete process.env.LITELLM_BASE_URL
+      if (typeof originalHome === "string") {
+        process.env.HOME = originalHome
+      } else {
+        delete process.env.HOME
+      }
+    }
+  })
+
+  it("auth loader defaults to Anthropic baseURL when LITELLM_BASE_URL is unset", async () => {
+    const originalNow = Date.now
+    const originalSetInterval = globalThis.setInterval
+    const originalHome = process.env.HOME
+    const tempHome = await mkdtemp(join(tmpdir(), "opencode-claude-auth-home-"))
+    process.env.HOME = tempHome
+    delete process.env.LITELLM_BASE_URL
+    Date.now = () => 1_700_000_000_000
+    globalThis.setInterval = (() => ({
+      unref() {},
+    })) as unknown as typeof setInterval
+
+    try {
+      const { helpersModule } = await loadHelpersWithCountingKeychain(
+        Date.now() + 10 * 60_000,
+      )
+
+      const plugin = await helpersModule.default({} as never)
+      const typedPlugin = plugin as {
+        auth?: {
+          loader?: (
+            getAuth: () => Promise<unknown>,
+            provider: unknown,
+          ) => Promise<{ baseURL?: string }>
+        }
+      }
+      const authConfig = await typedPlugin.auth!.loader!(
+        async () => ({
+          type: "oauth",
+          refresh: "refresh",
+          access: "access",
+          expires: Date.now() + 60_000,
+        }),
+        { models: {} },
+      )
+
+      assert.equal(authConfig.baseURL, "https://api.anthropic.com/v1")
+    } finally {
+      Date.now = originalNow
+      globalThis.setInterval = originalSetInterval
       if (typeof originalHome === "string") {
         process.env.HOME = originalHome
       } else {

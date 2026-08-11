@@ -1,0 +1,45 @@
+name: Publish to GitHub Packages
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: gpr-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@kinghrothgar"
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm run build
+
+      # Stamp a unique prerelease version so every push to main is publishable
+      # e.g. 2.1.6 -> 2.1.6-main.<shortsha>
+      - name: Set prerelease version
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          BASE_VERSION=$(node -p "require('./package.json').version")
+          npm version "${BASE_VERSION}-main.${SHORT_SHA}" --no-git-tag-version --allow-same-version
+
+      - run: pnpm publish --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

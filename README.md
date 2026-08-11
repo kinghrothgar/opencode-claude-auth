@@ -1,8 +1,9 @@
-# opencode-claude-auth
+# @kinghrothgar/opencode-claude-auth
 
-[![npm](https://img.shields.io/npm/v/opencode-claude-auth)](https://www.npmjs.com/package/opencode-claude-auth)
-[![CI](https://github.com/griffinmartin/opencode-claude-auth/actions/workflows/ci.yml/badge.svg)](https://github.com/griffinmartin/opencode-claude-auth/actions/workflows/ci.yml)
-[![Socket Badge](https://socket.dev/api/badge/npm/package/opencode-claude-auth)](https://socket.dev/npm/package/opencode-claude-auth)
+[![CI](https://github.com/kinghrothgar/opencode-claude-auth/actions/workflows/ci.yml/badge.svg)](https://github.com/kinghrothgar/opencode-claude-auth/actions/workflows/ci.yml)
+[![Publish](https://github.com/kinghrothgar/opencode-claude-auth/actions/workflows/publish-gpr.yml/badge.svg)](https://github.com/kinghrothgar/opencode-claude-auth/actions/workflows/publish-gpr.yml)
+
+> Fork of [griffinmartin/opencode-claude-auth](https://github.com/griffinmartin/opencode-claude-auth), published to **GitHub Packages** as `@kinghrothgar/opencode-claude-auth`.
 
 Self-contained Anthropic auth provider for OpenCode using your Claude Code credentials — no separate login or API key needed.
 
@@ -23,27 +24,32 @@ macOS is preferred (uses Keychain). Linux and Windows work via the credentials f
 
 **For Humans**
 
-**Option A: Let an LLM do it**
+**Prerequisite: authenticate to GitHub Packages**
 
-Paste this into any LLM agent (Claude Code, OpenCode, Cursor, etc.):
+This fork is published to GitHub Packages, which requires an authenticated `npm` client — even for public packages. Create a GitHub [Personal Access Token (classic)](https://github.com/settings/tokens/new?scopes=read:packages) with the `read:packages` scope, then add the following to your `~/.npmrc`:
 
 ```
-Install the opencode-claude-auth plugin and configure it by following: https://raw.githubusercontent.com/griffinmartin/opencode-claude-auth/main/installation.md
+@kinghrothgar:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=YOUR_GITHUB_PAT
 ```
 
-**Option B: Manual setup**
+**Manual setup**
 
 1. **Add the plugin** to `~/.config/opencode/opencode.json`:
 
    ```json
    {
-     "plugin": ["opencode-claude-auth@latest"]
+     "plugin": ["@kinghrothgar/opencode-claude-auth@latest"]
    }
    ```
 
-   > The `@latest` tag ensures OpenCode always pulls the newest version on startup. No manual `npm install` is needed — OpenCode [automatically installs npm plugins using Bun at startup](https://opencode.ai/docs/plugins/#how-plugins-are-installed).
+   > The `@latest` tag ensures OpenCode always pulls the newest version on startup. No manual `npm install` is needed — OpenCode [automatically installs npm plugins using Bun at startup](https://opencode.ai/docs/plugins/#how-plugins-are-installed). Bun reads the same `~/.npmrc`, so it will resolve the scoped package from GitHub Packages.
 
 2. **Use it** — just run OpenCode. The plugin handles auth automatically using your Claude Code credentials.
+
+### Versioning
+
+Every push to `main` publishes a new prerelease version of the form `X.Y.Z-main.<shortsha>` to GitHub Packages. Use `@latest` to always pull the newest, or pin to a specific SHA-stamped version for reproducibility.
 
 **For LLM Agents**
 

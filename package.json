@@ -1,5 +1,5 @@
 {
-  "name": "opencode-claude-auth",
+  "name": "@kinghrothgar/opencode-claude-auth",
   "version": "2.1.6",
   "description": "OpenCode plugin that uses your Claude Code credentials — no separate login needed.",
   "keywords": [
@@ -12,7 +12,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/griffinmartin/opencode-claude-auth.git"
+    "url": "git+https://github.com/kinghrothgar/opencode-claude-auth.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   },
   "files": [
     "opencode-claude-auth.js",

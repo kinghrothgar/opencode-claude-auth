@@ -2990,6 +2990,82 @@ describe("getCredentialsWithBackoff (transient rate-limit resilience)", () => {
       Date.now = originalNow
     }
   })
+
+  // Regression: the proactive-refresh timer (1h threshold) previously observed
+  // null whenever a cooldown was active and no sibling had written a fresh
+  // token, even though the account's own credentials were valid for the full
+  // hour. That surfaced "Proactive token refresh failed. Run `claude` to
+  // re-authenticate." during a plain rate-limit backoff. Mirrors the
+  // transient branch of performRefresh, which already returns still-usable
+  // creds instead of null.
+  it("returns still-usable credentials on the proactive path while a cooldown is active", async () => {
+    const originalFetch = globalThis.fetch
+    const originalNow = Date.now
+    const now = 1_700_000_000_000
+    Date.now = () => now
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ error: "rate_limit_error" }), {
+        status: 429,
+        headers: { "retry-after": "3600" },
+      })) as typeof fetch
+    try {
+      const { credentialsModule, keychainModule } =
+        await loadCredentialsWithCountingKeychain(now - 1_000)
+      // Start already-expired so priming the cooldown returns null (the
+      // transient branch of performRefresh only falls through to null when
+      // creds are inside the CLI_FALLBACK_THRESHOLD_MS window). The
+      // cooldown is keyed by source, so we can then flip the in-memory
+      // creds to a long-usable value and exercise the proactive path
+      // against the SAME source without touching the endpoint again.
+      const target = makeAccount(now - 1_000)
+      credentialsModule.initAccounts([target])
+      // Pin the store's own value to already-expired so the up-front
+      // re-read in refreshIfNeeded is a no-op and adoptFreshFromSource
+      // finds nothing usable during the cooldown branch.
+      keychainModule.__setCredentials({
+        accessToken: "existing-token",
+        refreshToken: "existing-refresh",
+        expiresAt: now - 1_000,
+      })
+
+      // Prime the cooldown with a rate-limited attempt.
+      const primed = await credentialsModule.refreshIfNeeded(target)
+      assert.equal(primed, null, "reactive path returns null on rate limit")
+      assert.equal(credentialsModule.getActiveRefreshFailureKind(), "transient")
+
+      // Simulate the token being refreshed elsewhere (or having always had
+      // more validity than the reactive threshold), leaving the cooldown
+      // in place. The proactive tick (1h threshold) must NOT surface a
+      // hard failure while these creds are still usable for well beyond
+      // the reactive window.
+      target.credentials = {
+        accessToken: "still-usable-token",
+        refreshToken: "still-usable-refresh",
+        expiresAt: now + 30 * 60_000,
+      }
+      // Keep the store in a state where adoptFreshFromSource cannot
+      // succeed — otherwise the cooldown branch would return the adopted
+      // creds and never reach the fix we're regression-testing.
+      keychainModule.__setCredentials({
+        accessToken: "still-usable-token",
+        refreshToken: "still-usable-refresh",
+        expiresAt: now - 1_000,
+      })
+
+      const proactive = await credentialsModule.refreshIfNeeded(
+        target,
+        60 * 60_000,
+      )
+      assert.ok(
+        proactive,
+        "proactive path must serve still-usable creds during a cooldown",
+      )
+      assert.equal(proactive?.accessToken, "still-usable-token")
+    } finally {
+      globalThis.fetch = originalFetch
+      Date.now = originalNow
+    }
+  })
 })
 
 describe("cross-process refresh lock (single-flight)", () => {

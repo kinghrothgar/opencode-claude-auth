@@ -520,6 +520,12 @@ export async function refreshIfNeeded(
       source: target.source,
       until: getRefreshCooldownUntil(target.source),
     })
+    // Don't surface a cooldown as a hard failure while the token is still
+    // usable well beyond the reactive window. The proactive timer passes a
+    // 1h threshold and would otherwise warn the user to re-authenticate
+    // during a plain rate-limit backoff. Mirrors the transient branch of
+    // performRefresh (line ~692), which also serves still-usable creds.
+    if (creds.expiresAt > Date.now() + CLI_FALLBACK_THRESHOLD_MS) return creds
     return null
   }
 

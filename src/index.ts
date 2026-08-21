@@ -261,14 +261,32 @@ const plugin: Plugin = async () => {
           }
           proactiveRefreshWarned = false
         } else {
-          log("proactive_refresh_failed", { source: account?.source })
+          // Distinguish a dead refresh token (terminal — the user really
+          // must re-auth) from a rate-limit/backoff (transient — the plugin
+          // will keep retrying, no user action needed). The default message
+          // is preserved when the underlying kind is unknown.
+          const kind = getActiveRefreshFailureKind()
+          log("proactive_refresh_failed", {
+            source: account?.source,
+            kind,
+          })
           // Only warn once per outage — otherwise this fires every
           // SYNC_INTERVAL (5 min) for as long as refresh keeps failing.
           if (!proactiveRefreshWarned) {
             proactiveRefreshWarned = true
-            console.warn(
-              "opencode-claude-auth: Proactive token refresh failed. Run `claude` to re-authenticate.",
-            )
+            if (kind === "terminal") {
+              console.warn(
+                "opencode-claude-auth: Refresh token rejected by claude.ai (invalid_grant). Run `claude` to re-authenticate.",
+              )
+            } else if (kind === "transient") {
+              console.warn(
+                "opencode-claude-auth: Token refresh throttled or unreachable; will retry. Run `claude` if this persists.",
+              )
+            } else {
+              console.warn(
+                "opencode-claude-auth: Proactive token refresh failed. Run `claude` to re-authenticate.",
+              )
+            }
           }
         }
       } catch {

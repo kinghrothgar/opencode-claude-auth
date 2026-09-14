@@ -466,6 +466,26 @@ export function transformBody(
       }
     }
 
+    // Strip thinking.block_binding for every request.
+    //
+    // OpenCode >= 1.18.29 unconditionally injects `blockBinding` into the
+    // thinking config for @ai-sdk/anthropic requests (serialized as
+    // `thinking.block_binding.prefix_mismatch_behavior`) and adds the
+    // `thinking-binding-controls-2026-08-01` beta to its own beta list.
+    // This plugin's `buildRequestHeaders` replaces the `anthropic-beta`
+    // header with a curated Claude-Code-CLI-compatible list that does not
+    // include that beta, so Anthropic rejects the body field as
+    // "Extra inputs are not permitted".
+    //
+    // Claude Code CLI 2.1.257 does not send `block_binding`; stripping is
+    // the right call to keep the impersonation consistent.
+    if (parsed.thinking && "block_binding" in parsed.thinking) {
+      delete parsed.thinking.block_binding
+      if (Object.keys(parsed.thinking).length === 0) {
+        delete parsed.thinking
+      }
+    }
+
     // Anthropic's OAuth billing validation rejects lowercase tool names
     // when multiple tools are present. Claude Code uses PascalCase after
     // the mcp_ prefix (e.g. mcp_Bash, mcp_Read). Apply the same convention.

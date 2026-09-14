@@ -472,6 +472,112 @@ describe("transforms", () => {
     assert.equal(parsed.thinking, undefined)
   })
 
+  it("transformBody strips thinking.block_binding for adaptive thinking", () => {
+    const input = JSON.stringify({
+      model: "claude-fable-5-1",
+      thinking: {
+        type: "adaptive",
+        block_binding: { prefix_mismatch_behavior: "drop_block" },
+      },
+      messages: [{ role: "user", content: "test" }],
+    })
+
+    const output = transformBody(input)
+    const parsed = JSON.parse(output as string) as {
+      thinking?: Record<string, unknown>
+    }
+
+    assert.deepEqual(
+      parsed.thinking,
+      { type: "adaptive" },
+      "block_binding should be stripped while adaptive type is preserved",
+    )
+  })
+
+  it("transformBody strips thinking.block_binding but preserves budget_tokens for enabled thinking", () => {
+    const input = JSON.stringify({
+      model: "claude-opus-4-7",
+      thinking: {
+        type: "enabled",
+        budget_tokens: 16000,
+        block_binding: { prefix_mismatch_behavior: "drop_block" },
+      },
+      messages: [{ role: "user", content: "test" }],
+    })
+
+    const output = transformBody(input)
+    const parsed = JSON.parse(output as string) as {
+      thinking?: Record<string, unknown>
+    }
+
+    assert.deepEqual(
+      parsed.thinking,
+      { type: "enabled", budget_tokens: 16000 },
+      "block_binding should be stripped while other thinking fields are preserved",
+    )
+  })
+
+  it("transformBody removes thinking entirely when block_binding is its only field", () => {
+    const input = JSON.stringify({
+      model: "claude-opus-4-7",
+      thinking: { block_binding: { prefix_mismatch_behavior: "drop_block" } },
+      messages: [{ role: "user", content: "test" }],
+    })
+
+    const output = transformBody(input)
+    const parsed = JSON.parse(output as string) as {
+      thinking?: Record<string, unknown>
+    }
+
+    assert.equal(
+      parsed.thinking,
+      undefined,
+      "thinking should be removed when block_binding was its only field",
+    )
+  })
+
+  it("transformBody preserves thinking when block_binding is absent", () => {
+    const input = JSON.stringify({
+      model: "claude-opus-4-7",
+      thinking: { type: "enabled", budget_tokens: 16000 },
+      messages: [{ role: "user", content: "test" }],
+    })
+
+    const output = transformBody(input)
+    const parsed = JSON.parse(output as string) as {
+      thinking?: Record<string, unknown>
+    }
+
+    assert.deepEqual(
+      parsed.thinking,
+      { type: "enabled", budget_tokens: 16000 },
+      "thinking without block_binding should pass through unchanged",
+    )
+  })
+
+  it("transformBody strips both thinking.effort and thinking.block_binding for haiku", () => {
+    const input = JSON.stringify({
+      model: "claude-haiku-4-5",
+      thinking: {
+        type: "enabled",
+        effort: "high",
+        block_binding: { prefix_mismatch_behavior: "drop_block" },
+      },
+      messages: [{ role: "user", content: "test" }],
+    })
+
+    const output = transformBody(input)
+    const parsed = JSON.parse(output as string) as {
+      thinking?: Record<string, unknown>
+    }
+
+    assert.deepEqual(
+      parsed.thinking,
+      { type: "enabled" },
+      "both effort and block_binding should be stripped, leaving type",
+    )
+  })
+
   it("transformBody PascalCase-prefixes tool names with mcp_", () => {
     const input = JSON.stringify({
       system: [],

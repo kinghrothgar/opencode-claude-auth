@@ -62,7 +62,7 @@ describe("betas", () => {
   })
 
   it("effort beta: 4-6/4-7 and opus-4-5 include it; sonnet-4-5 omits it", () => {
-    // Pinned from Claude CLI 2.1.257 intercept traffic. Effort stays out of
+    // Pinned from Claude CLI 2.1.285 intercept traffic. Effort stays out of
     // baseBetas; add-overrides cover models that send it. haiku is first-match
     // so claude-haiku-4-5 never reaches an opus-4-5/"4-5" add.
     assert.ok(

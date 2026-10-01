@@ -12,7 +12,7 @@ export interface ModelConfig {
 }
 
 export const config: ModelConfig = {
-  ccVersion: "2.1.257",
+  ccVersion: "2.1.285",
   baseBetas: [
     "claude-code-20250219",
     "oauth-2025-04-20",
@@ -31,7 +31,7 @@ export const config: ModelConfig = {
   // "4-5" add so claude-haiku-4-5 never receives effort. "opus-4-5" is
   // more specific than a bare "4-5" would be (sonnet-4-5 still omits
   // effort). Pinned by the "effort beta" test in betas.test.ts from
-  // Claude CLI 2.1.257 intercept traffic.
+  // Claude CLI 2.1.285 intercept traffic.
   modelOverrides: {
     haiku: {
       exclude: ["effort-2025-11-24"],

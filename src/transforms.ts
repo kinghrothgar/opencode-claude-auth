@@ -477,7 +477,7 @@ export function transformBody(
     // include that beta, so Anthropic rejects the body field as
     // "Extra inputs are not permitted".
     //
-    // Claude Code CLI 2.1.257 does not send `block_binding`; stripping is
+    // Claude Code CLI 2.1.285 does not send `block_binding`; stripping is
     // the right call to keep the impersonation consistent.
     if (parsed.thinking && "block_binding" in parsed.thinking) {
       delete parsed.thinking.block_binding
